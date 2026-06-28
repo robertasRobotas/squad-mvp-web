@@ -116,6 +116,10 @@ function NewGameForm() {
       return;
     }
     setSubmitting(true);
+    // include a player typed into the add-row but not yet "Added"
+    const allPlayers = draft.name.trim()
+      ? [...players, { ...draft, name: draft.name.trim() }]
+      : players;
     try {
       const res = await fetch("/api/games", {
         method: "POST",
@@ -127,7 +131,7 @@ function NewGameForm() {
           formationAway,
           date: new Date(date).toISOString(),
           address: address.trim(),
-          players,
+          players: allPlayers,
           clonePlayersFrom: cloneFrom ?? undefined,
         }),
       });

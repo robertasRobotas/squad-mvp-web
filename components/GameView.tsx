@@ -5,7 +5,39 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { formatDateTime } from "@/lib/format";
-import type { Game, Player, PublicUser, Slot } from "@/lib/types";
+import { formationsForSize, formationToSlots } from "@/lib/formations";
+import type { Game, Player, PublicUser, Slot, Team } from "@/lib/types";
+
+// formations available for a team size, always including the current one
+function formationOptions(size: number, current: string): string[] {
+  const list = formationsForSize(size);
+  return list.includes(current) ? list : [current, ...list];
+}
+
+// optimistic mirror of the server's formation change: rebuild a team's slots,
+// carrying assigned players over in order.
+function rebuildFormation(game: Game, team: Team, formation: string): Game {
+  const previouslyAssigned = game.slots
+    .filter((s) => s.team === team && s.playerId)
+    .map((s) => s.playerId as string);
+  const newTeamSlots = formationToSlots(formation, team);
+  previouslyAssigned.forEach((pid, i) => {
+    if (newTeamSlots[i]) newTeamSlots[i].playerId = pid;
+  });
+  const otherSlots = game.slots.filter((s) => s.team !== team);
+  const players =
+    formation.split("-").reduce((a, n) => a + (parseInt(n, 10) || 0), 0) + 1;
+  return {
+    ...game,
+    slots:
+      team === "home"
+        ? [...newTeamSlots, ...otherSlots]
+        : [...otherSlots, ...newTeamSlots],
+    formationHome: team === "home" ? formation : game.formationHome,
+    formationAway: team === "away" ? formation : game.formationAway,
+    format: { ...game.format, [team]: players },
+  };
+}
 
 interface Props {
   initialGame: Game;
@@ -46,9 +78,17 @@ export default function GameView({ initialGame, currentUser }: Props) {
     null,
   );
   const [toast, setToast] = useState<string | null>(null);
+  // Dates are locale/timezone dependent, so only format them after mount to
+  // avoid an SSR/client hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   const dragRef = useRef<DragInfo | null>(null);
   const dropRef = useRef<string | null>(null);
+  const pitchRef = useRef<HTMLDivElement>(null);
 
   const playersById = useMemo(() => {
     const m = new Map<string, Player>();
@@ -151,14 +191,36 @@ export default function GameView({ initialGame, currentUser }: Props) {
       setHovered(null);
       setPinned(null);
       setDrag({ playerId: info.playerId, x: ev.clientX, y: ev.clientY });
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const slotEl = el?.closest("[data-slot-id]");
-      const benchEl = el?.closest("[data-bench]");
-      const target = slotEl
-        ? slotEl.getAttribute("data-slot-id")
-        : benchEl
-          ? "__bench__"
-          : null;
+
+      // If the pointer is over the pitch, snap to the NEAREST position rather
+      // than requiring a pixel-perfect hit — this makes crowded spots (e.g. the
+      // two forwards near the halfway line) reliably reachable.
+      let target: string | null = null;
+      const pitch = pitchRef.current;
+      if (pitch) {
+        const r = pitch.getBoundingClientRect();
+        const inside =
+          ev.clientX >= r.left &&
+          ev.clientX <= r.right &&
+          ev.clientY >= r.top &&
+          ev.clientY <= r.bottom;
+        if (inside) {
+          const px = ((ev.clientX - r.left) / r.width) * 100;
+          const py = ((ev.clientY - r.top) / r.height) * 100;
+          let bestDist = Infinity;
+          for (const s of game.slots) {
+            const d = (s.x - px) ** 2 + (s.y - py) ** 2;
+            if (d < bestDist) {
+              bestDist = d;
+              target = s.id;
+            }
+          }
+        }
+      }
+      if (!target) {
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        if (el?.closest("[data-bench]")) target = "__bench__";
+      }
       dropRef.current = target;
       setDropTarget(target);
     };
@@ -309,19 +371,100 @@ export default function GameView({ initialGame, currentUser }: Props) {
         <span className="badge">
           {game.format.home}v{game.format.away}
         </span>
-        <span className="badge">
-          🏠 {game.formationHome} · ✈️ {game.formationAway}
-        </span>
+        <div className="formation-pill" title="Home line-up">
+          🏠
+          <select
+            value={game.formationHome}
+            onChange={(e) =>
+              patchGame(
+                { formationHome: e.target.value },
+                rebuildFormation(game, "home", e.target.value),
+              )
+            }
+          >
+            {formationOptions(game.format.home, game.formationHome).map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="formation-pill" title="Away line-up">
+          ✈️
+          <select
+            value={game.formationAway}
+            onChange={(e) =>
+              patchGame(
+                { formationAway: e.target.value },
+                rebuildFormation(game, "away", e.target.value),
+              )
+            }
+          >
+            {formationOptions(game.format.away, game.formationAway).map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <div className="game-meta" style={{ marginBottom: 18 }}>
-        <span>🗓️ {formatDateTime(game.date)}</span>
+      <div className="game-meta" style={{ marginBottom: 16 }}>
+        <span suppressHydrationWarning>
+          🗓️ {mounted ? formatDateTime(game.date) : ""}
+        </span>
         {game.address && <span>📍 {game.address}</span>}
       </div>
+
+      {/* PLAYER TRAY — kept above the pitch so players are always visible */}
+      <section className="card card-pad tray">
+        <div className="tray-head">
+          <h3 style={{ fontSize: "1.05rem", margin: 0 }}>
+            Players{" "}
+            <span className="muted" style={{ fontWeight: 400 }}>
+              {game.players.length === 0
+                ? "— add some to get started"
+                : `· ${bench.length} on the bench`}
+            </span>
+          </h3>
+          <AddPlayer onAdd={addPlayer} />
+        </div>
+        <div
+          className={`bench tray-bench${
+            dropTarget === "__bench__" ? " drop-target" : ""
+          }`}
+          data-bench
+        >
+          {game.players.length === 0 ? (
+            <span className="muted" style={{ fontSize: "0.85rem" }}>
+              No players yet — use “Add player” above, then drag them onto the
+              pitch.
+            </span>
+          ) : (
+            bench.length === 0 && (
+              <span className="muted" style={{ fontSize: "0.85rem" }}>
+                Everyone is on the pitch 🎉
+              </span>
+            )
+          )}
+          {bench.map((p) => (
+            <div
+              key={p.id}
+              data-draggable
+              className="bench-player"
+              onPointerDown={(e) => startDrag(e, p.id, null)}
+            >
+              <span className="bp-circle">{circleInner(p)}</span>
+              {p.name}
+              {p.id === myPlayerId && " ⚽"}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="board-layout">
         {/* PITCH */}
         <div className="pitch-wrap">
-          <div className="pitch">
+          <div className="pitch" ref={pitchRef}>
             <div className="pitch-box top" />
             <div className="pitch-box bottom" />
             {game.slots.map((slot) => {
@@ -379,36 +522,6 @@ export default function GameView({ initialGame, currentUser }: Props) {
         {/* SIDEBAR */}
         <aside className="sidebar">
           <div className="card card-pad">
-            <h3 style={{ fontSize: "1.05rem" }}>Bench</h3>
-            <p className="muted" style={{ fontSize: "0.82rem", marginTop: 0 }}>
-              {bench.length} player{bench.length === 1 ? "" : "s"} to place
-            </p>
-            <div
-              className={`bench${dropTarget === "__bench__" ? " drop-target" : ""}`}
-              data-bench
-            >
-              {bench.length === 0 && (
-                <span className="muted" style={{ fontSize: "0.85rem" }}>
-                  Everyone is on the pitch 🎉
-                </span>
-              )}
-              {bench.map((p) => (
-                <div
-                  key={p.id}
-                  data-draggable
-                  className="bench-player"
-                  onPointerDown={(e) => startDrag(e, p.id, null)}
-                >
-                  <span className="bp-circle">{circleInner(p)}</span>
-                  {p.name}
-                  {p.id === myPlayerId && " ⚽"}
-                </div>
-              ))}
-            </div>
-            <AddPlayer onAdd={addPlayer} />
-          </div>
-
-          <div className="card card-pad">
             <h3 style={{ fontSize: "1.05rem" }}>Final score</h3>
             <ScoreEditor
               key={`${game.score?.home ?? ""}-${game.score?.away ?? ""}`}
@@ -446,8 +559,9 @@ export default function GameView({ initialGame, currentUser }: Props) {
             <button
               className="btn btn-primary btn-block"
               onClick={() => router.push(`/games/new?clone=${game.id}`)}
+              title="Create another game with the same people"
             >
-              🔁 Create another game with the same people
+              🔁 Rematch with same squad
             </button>
             <button
               className="btn btn-ghost btn-block"
@@ -598,18 +712,6 @@ function AddPlayer({
   const [email, setEmail] = useState("");
   const [imgUrl, setImgUrl] = useState("");
 
-  if (!open) {
-    return (
-      <button
-        className="btn btn-sm btn-ghost btn-block"
-        style={{ marginTop: 12 }}
-        onClick={() => setOpen(true)}
-      >
-        + Add player
-      </button>
-    );
-  }
-
   function submit() {
     if (!name.trim()) return;
     onAdd({
@@ -626,41 +728,55 @@ function AddPlayer({
   }
 
   return (
-    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-      <input
-        placeholder="Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && submit()}
-      />
-      <div className="row">
-        <input
-          placeholder="No."
-          type="number"
-          min={1}
-          value={number}
-          onChange={(e) => setNumber(e.target.value)}
-        />
-        <input
-          placeholder="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-      </div>
-      <input
-        placeholder="Image URL (optional)"
-        value={imgUrl}
-        onChange={(e) => setImgUrl(e.target.value)}
-      />
-      <div className="row">
-        <button className="btn btn-sm btn-primary" onClick={submit}>
-          Add
-        </button>
-        <button className="btn btn-sm btn-ghost" onClick={() => setOpen(false)}>
-          Cancel
-        </button>
-      </div>
+    <div className="add-player">
+      <button
+        className="btn btn-sm btn-primary"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {open ? "Close" : "+ Add player"}
+      </button>
+      {open && (
+        <div className="add-player-panel card">
+          <input
+            placeholder="Name"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+          />
+          <div className="row">
+            <input
+              placeholder="No."
+              type="number"
+              min={1}
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+            />
+            <input
+              placeholder="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <input
+            placeholder="Image URL (optional)"
+            value={imgUrl}
+            onChange={(e) => setImgUrl(e.target.value)}
+          />
+          <div className="row">
+            <button className="btn btn-sm btn-primary" onClick={submit}>
+              Add player
+            </button>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

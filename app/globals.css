@@ -948,3 +948,66 @@ input::placeholder {
 .cal-event:hover {
   border-color: var(--primary);
 }
+
+/* inline formation editor in the game header */
+.formation-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.formation-pill select {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: var(--bg-soft);
+  border-radius: 7px;
+  color: var(--text);
+}
+
+/* ---- player tray (above the pitch) ---- */
+.tray {
+  margin-bottom: 16px;
+}
+.tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tray-bench {
+  min-height: 52px;
+}
+/* bench laid out horizontally; scrolls if it overflows on small screens */
+.tray-bench {
+  flex-wrap: wrap;
+}
+.add-player {
+  position: relative;
+  flex: none;
+}
+.add-player-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: min(300px, 80vw);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (max-width: 520px) {
+  .add-player-panel {
+    right: auto;
+    left: 0;
+  }
+}

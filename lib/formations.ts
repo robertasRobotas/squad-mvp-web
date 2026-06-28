@@ -57,11 +57,12 @@ export function formationToSlots(formation: string, team: Team): Slot[] {
   allRows.forEach((count, rowIndex) => {
     // 0 (own goal line) -> 1 (half-way line) along the team's own half.
     const depth = totalRows === 1 ? 0 : rowIndex / (totalRows - 1);
-    // map depth onto the team's half of the pitch with a little padding
+    // Map depth onto the team's half, stopping short of the centre line so the
+    // two attacking lines don't overlap on top of each other.
     const y =
       team === "home"
-        ? 94 - depth * 42 // 94 (own goal) -> 52 (centre)
-        : 6 + depth * 42; // 6 (own goal) -> 48 (centre)
+        ? 92 - depth * 36 // 92 (own goal) -> 56 (just below centre)
+        : 8 + depth * 36; // 8 (own goal) -> 44 (just above centre)
 
     for (let j = 0; j < count; j++) {
       const xFraction = (j + 1) / (count + 1);
