@@ -73,6 +73,8 @@ export interface Game {
   /** ISO datetime for kick-off */
   date: string;
   address: string;
+  /** match rule: teams switch ends every N minutes (undefined = not used) */
+  swapEndsMinutes?: number;
   players: Player[];
   slots: Slot[];
   score?: Score;
@@ -91,6 +93,7 @@ export interface CreateGameInput {
   formationAway: string;
   date: string;
   address: string;
+  swapEndsMinutes?: number;
   players: Omit<Player, "id">[];
   /** clone the player list from an existing game */
   clonePlayersFrom?: string;

@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { formatDateTime } from "@/lib/format";
-import { formationsForSize, formationToSlots } from "@/lib/formations";
+import {
+  defaultFormation,
+  formationsForSize,
+  formationToSlots,
+  TEAM_SIZES,
+} from "@/lib/formations";
 import type { Game, Player, PublicUser, Slot, Team } from "@/lib/types";
 
 // formations available for a team size, always including the current one
@@ -342,6 +347,18 @@ export default function GameView({ initialGame, currentUser }: Props) {
     )?.stars;
   }
 
+  // Change a team's size (e.g. 7-a-side -> 5-a-side): switch to a default
+  // formation for the new size; the rebuild keeps placed players where it can.
+  function changeSize(team: "home" | "away", size: number) {
+    const formation = defaultFormation(size);
+    patchGame(
+      team === "home"
+        ? { formationHome: formation }
+        : { formationAway: formation },
+      rebuildFormation(game, team, formation),
+    );
+  }
+
   // -- rendering helpers --
   function circleInner(player: Player) {
     if (player.imgUrl) {
@@ -368,9 +385,31 @@ export default function GameView({ initialGame, currentUser }: Props) {
 
       <div className="game-header">
         <h1>{game.title || "Football match"}</h1>
-        <span className="badge">
-          {game.format.home}v{game.format.away}
-        </span>
+        <div className="formation-pill" title="Team sizes — how many vs how many">
+          <select
+            aria-label="Home team size"
+            value={game.format.home}
+            onChange={(e) => changeSize("home", Number(e.target.value))}
+          >
+            {TEAM_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <strong style={{ color: "var(--muted)" }}>v</strong>
+          <select
+            aria-label="Away team size"
+            value={game.format.away}
+            onChange={(e) => changeSize("away", Number(e.target.value))}
+          >
+            {TEAM_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="formation-pill" title="Home line-up">
           🏠
           <select
@@ -414,6 +453,18 @@ export default function GameView({ initialGame, currentUser }: Props) {
         </span>
         {game.address && <span>📍 {game.address}</span>}
       </div>
+
+      {/* match rule: switch ends every N minutes */}
+      <SwapEndsRule
+        key={game.swapEndsMinutes ?? "none"}
+        minutes={game.swapEndsMinutes}
+        onChange={(m) =>
+          patchGame(
+            { swapEndsMinutes: m ?? null },
+            { ...game, swapEndsMinutes: m },
+          )
+        }
+      />
 
       {/* PLAYER TRAY — kept above the pitch so players are always visible */}
       <section className="card card-pad tray">
@@ -778,6 +829,89 @@ function AddPlayer({
         </div>
       )}
     </div>
+  );
+}
+
+// "Teams switch ends every N minutes" — a prominent, editable match rule.
+function SwapEndsRule({
+  minutes,
+  onChange,
+}: {
+  minutes?: number;
+  onChange: (m: number | undefined) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(minutes ?? 10));
+
+  if (!minutes && !editing) {
+    return (
+      <button
+        className="btn btn-sm btn-ghost"
+        style={{ marginBottom: 16 }}
+        onClick={() => {
+          setValue("10");
+          setEditing(true);
+        }}
+      >
+        ⇄ Add “switch ends” rule
+      </button>
+    );
+  }
+
+  function commit() {
+    const m = Math.round(Number(value));
+    onChange(Number.isFinite(m) && m > 0 ? Math.min(m, 120) : undefined);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="rule-pill editing">
+        <span className="rule-arrows" aria-hidden>
+          ⇄
+        </span>
+        <span>Switch ends every</span>
+        <input
+          type="number"
+          min={1}
+          max={120}
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && commit()}
+        />
+        <span>min</span>
+        <button className="btn btn-sm btn-primary" onClick={commit}>
+          Save
+        </button>
+        {minutes != null && (
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={() => onChange(undefined)}
+            title="Remove rule"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className="rule-pill"
+      title="Tap to change — teams switch ends on this schedule"
+      onClick={() => {
+        setValue(String(minutes));
+        setEditing(true);
+      }}
+    >
+      <span className="rule-arrows" aria-hidden>
+        ⇄
+      </span>
+      <strong>Switch ends every {minutes} min</strong>
+      <span className="rule-edit-hint">edit</span>
+    </button>
   );
 }
 

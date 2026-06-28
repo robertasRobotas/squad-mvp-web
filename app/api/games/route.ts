@@ -70,6 +70,7 @@ export async function POST(request: Request) {
     formationAway,
     date,
     address,
+    swapEndsMinutes: numberOrUndef(body.swapEndsMinutes),
     players,
     slots: buildSlots(formationHome, formationAway),
     ratings: [],

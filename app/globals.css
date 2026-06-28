@@ -1011,3 +1011,48 @@ input::placeholder {
     left: 0;
   }
 }
+
+/* ---- "switch ends" match rule ---- */
+.rule-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: linear-gradient(
+    180deg,
+    rgba(56, 189, 248, 0.16),
+    rgba(56, 189, 248, 0.06)
+  );
+  color: var(--text);
+  font-size: 0.92rem;
+  cursor: pointer;
+  text-align: left;
+}
+button.rule-pill:hover {
+  border-color: var(--accent);
+}
+.rule-pill.editing {
+  cursor: default;
+  flex-wrap: wrap;
+}
+.rule-arrows {
+  font-size: 1.15rem;
+  color: var(--accent);
+  font-weight: 800;
+}
+.rule-pill input {
+  width: 64px;
+  padding: 5px 8px;
+  text-align: center;
+  font-weight: 700;
+}
+.rule-edit-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+}

@@ -38,6 +38,11 @@ export async function PATCH(
     if (body.score !== undefined) {
       game.score = sanitizeScore(body.score);
     }
+    if (body.swapEndsMinutes !== undefined) {
+      const m = Math.round(Number(body.swapEndsMinutes));
+      game.swapEndsMinutes =
+        Number.isFinite(m) && m > 0 ? Math.min(m, 120) : undefined;
+    }
     if (typeof body.title === "string") game.title = body.title.trim();
     if (typeof body.address === "string") game.address = body.address.trim();
     if (typeof body.date === "string" && body.date.trim()) {

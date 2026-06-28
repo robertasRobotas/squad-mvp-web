@@ -32,6 +32,7 @@ function NewGameForm() {
   );
   const [date, setDate] = useState("");
   const [address, setAddress] = useState("");
+  const [swapEnds, setSwapEnds] = useState("10");
   const [players, setPlayers] = useState<NewPlayer[]>([]);
   const [draft, setDraft] = useState<NewPlayer>({ name: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -75,6 +76,7 @@ function NewGameForm() {
         setFormationHome(g.formationHome);
         setFormationAway(g.formationAway);
         setAddress(g.address || "");
+        setSwapEnds(g.swapEndsMinutes ? String(g.swapEndsMinutes) : "");
         setTitle(g.title ? `${g.title} (rematch)` : "");
         setPlayers(
           g.players.map((p: Player) => ({
@@ -131,6 +133,7 @@ function NewGameForm() {
           formationAway,
           date: new Date(date).toISOString(),
           address: address.trim(),
+          swapEndsMinutes: swapEnds ? Number(swapEnds) : undefined,
           players: allPlayers,
           clonePlayersFrom: cloneFrom ?? undefined,
         }),
@@ -248,6 +251,26 @@ function NewGameForm() {
                 placeholder="Riverside 3G Pitch, Main St 10"
               />
             </div>
+          </div>
+
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="swap">Switch ends every (minutes)</label>
+            <input
+              id="swap"
+              type="number"
+              min={1}
+              max={120}
+              value={swapEnds}
+              onChange={(e) => setSwapEnds(e.target.value)}
+              placeholder="e.g. 10 — leave empty if you don't switch"
+              style={{ maxWidth: 280 }}
+            />
+            <p
+              className="muted"
+              style={{ fontSize: "0.8rem", margin: "6px 0 0" }}
+            >
+              Shown on the game so everyone knows to swap sides on schedule.
+            </p>
           </div>
         </div>
 
