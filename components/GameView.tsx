@@ -242,14 +242,10 @@ export default function GameView({ initialGame, currentUser }: Props) {
       if (!info) return;
       if (!info.moved) {
         // a tap/click → toggle the action popover
-        setPinned((cur) =>
-          cur?.id === info.playerId
-            ? null
-            : {
-                id: info.playerId,
-                x: info.rect.left + info.rect.width / 2,
-                y: info.rect.top,
-              },
+        openPlayerActions(
+          info.playerId,
+          info.rect.left + info.rect.width / 2,
+          info.rect.top,
         );
         return;
       }
@@ -345,6 +341,16 @@ export default function GameView({ initialGame, currentUser }: Props) {
     return game.ratings.find(
       (r) => r.playerId === playerId && r.raterUserId === me.id,
     )?.stars;
+  }
+
+  // Open the player action popover (claim / rate / remove) anchored at a point,
+  // used by both the pitch circles and the team-sheet table rows.
+  function openPlayerActions(playerId: string, x: number, y: number) {
+    // keep the ~230px popover within the viewport
+    const cx = Math.min(Math.max(x, 122), window.innerWidth - 122);
+    setPinned((cur) =>
+      cur?.id === playerId ? null : { id: playerId, x: cx, y },
+    );
   }
 
   // Change a team's size (e.g. 7-a-side -> 5-a-side): switch to a default
@@ -641,6 +647,30 @@ export default function GameView({ initialGame, currentUser }: Props) {
         </aside>
       </div>
 
+      {/* TEAM SHEETS — one table per team, below the pitch */}
+      <div className="team-sheets">
+        <TeamSheet
+          title="Home"
+          icon="🏠"
+          formation={game.formationHome}
+          slots={game.slots.filter((s) => s.team === "home")}
+          playersById={playersById}
+          averages={averages}
+          myPlayerId={myPlayerId}
+          onSelectPlayer={openPlayerActions}
+        />
+        <TeamSheet
+          title="Away"
+          icon="✈️"
+          formation={game.formationAway}
+          slots={game.slots.filter((s) => s.team === "away")}
+          playersById={playersById}
+          averages={averages}
+          myPlayerId={myPlayerId}
+          onSelectPlayer={openPlayerActions}
+        />
+      </div>
+
       {/* hover tooltip */}
       {hoveredPlayer && hovered && (
         <div
@@ -828,6 +858,93 @@ function AddPlayer({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// A team line-up rendered as a table (one per side, below the pitch).
+function TeamSheet({
+  title,
+  icon,
+  formation,
+  slots,
+  playersById,
+  averages,
+  myPlayerId,
+  onSelectPlayer,
+}: {
+  title: string;
+  icon: string;
+  formation: string;
+  slots: Slot[];
+  playersById: Map<string, Player>;
+  averages: Map<string, { avg: number; count: number }>;
+  myPlayerId?: string;
+  onSelectPlayer: (playerId: string, x: number, y: number) => void;
+}) {
+  const filled = slots.filter((s) => s.playerId).length;
+  return (
+    <div className="card card-pad team-sheet">
+      <div className="ts-head">
+        <h3>
+          {icon} {title}
+        </h3>
+        <span className="badge">
+          {formation} · {filled}/{slots.length}
+        </span>
+      </div>
+      <table className="ts-table">
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th>#</th>
+            <th>Player</th>
+            <th style={{ textAlign: "right" }}>Rating</th>
+          </tr>
+        </thead>
+        <tbody>
+          {slots.map((s) => {
+            const player = s.playerId ? playersById.get(s.playerId) : undefined;
+            const avg = player ? averages.get(player.id) : undefined;
+            return (
+              <tr
+                key={s.id}
+                className={player ? "ts-row" : undefined}
+                onClick={
+                  player
+                    ? (e) => onSelectPlayer(player.id, e.clientX, e.clientY)
+                    : undefined
+                }
+                title={player ? "Tap to claim / rate this player" : undefined}
+              >
+                <td>
+                  <span className="pos-tag">{s.role}</span>
+                </td>
+                <td className="ts-num">{player?.number ?? "—"}</td>
+                <td>
+                  {player ? (
+                    <span className="ts-name">
+                      {player.name}
+                      {player.id === myPlayerId && (
+                        <span className="ts-me">ME</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="muted">— empty —</span>
+                  )}
+                </td>
+                <td style={{ textAlign: "right" }}>
+                  {avg ? (
+                    <span className="rating-score">⭐ {avg.avg}</span>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

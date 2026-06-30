@@ -1056,3 +1056,91 @@ button.rule-pill:hover {
   border-radius: 6px;
   padding: 1px 6px;
 }
+
+/* ---- team sheets (two tables below the pitch) ---- */
+.team-sheets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 22px;
+}
+@media (max-width: 760px) {
+  .team-sheets {
+    grid-template-columns: 1fr;
+  }
+}
+.team-sheet .ts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.team-sheet h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.ts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.ts-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 0 8px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.ts-table td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.ts-table tr:last-child td {
+  border-bottom: none;
+}
+.ts-num {
+  color: var(--muted);
+  font-weight: 700;
+}
+.pos-tag {
+  display: inline-block;
+  min-width: 38px;
+  text-align: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.ts-name {
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.ts-me {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 999px;
+}
+
+/* clickable player rows in the team sheets */
+.ts-table tr.ts-row {
+  cursor: pointer;
+}
+.ts-table tr.ts-row:hover td {
+  background: var(--surface-2);
+}
+.ts-table tr.ts-row:active td {
+  background: #24395f;
+}
